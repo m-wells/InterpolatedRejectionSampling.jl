@@ -1,0 +1,8 @@
+desc == "Fast (multivariate) rejection sampling of PDFs using interpolation approximation."
+name = "InterpolatedRejectionSampling"
+uuid = "9608d442-472c-11e9-3e14-5b72dbacd115"
+authors = ["m-wells <maw461@psu.edu>"]
+version = "0.1.0"
+
+[deps]
+Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
