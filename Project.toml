@@ -1,4 +1,4 @@
-desc == "Fast (multivariate) rejection sampling of PDFs using interpolation approximation."
+desc = "Fast (multivariate) rejection sampling of PDFs using interpolation approximation."
 name = "InterpolatedRejectionSampling"
 uuid = "9608d442-472c-11e9-3e14-5b72dbacd115"
 authors = ["m-wells <maw461@psu.edu>"]
