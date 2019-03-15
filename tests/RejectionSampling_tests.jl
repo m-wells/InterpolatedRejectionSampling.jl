@@ -13,7 +13,7 @@ axes_grid1 = pyimport("mpl_toolkits.axes_grid1")
 
 
 
-import RejectionSampling
+include("../src/InterpolatedRejectionSampling.jl")
 ####################################################################################################
 function test_dist1(x,y)
     prob_matrix = Matrix{Float64}(undef,length(x),length(y))
@@ -35,7 +35,7 @@ y = range(y1,y2,length=5)
 prob_matrix = test_dist1(x,y)
 display(prob_matrix)
 
-samps = RejectionSampling.rejection_sampling(1000000, prob_matrix, x, y)
+samps = InterpolatedRejectionSampling.rejection_sampling((x,y), prob_matrix, 1000000)
 xs = getindex.(samps,1)
 ys = getindex.(samps,2)
 
