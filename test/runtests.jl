@@ -7,7 +7,6 @@
 
 using InterpolatedRejectionSampling
 using Test
-using Statistics
 
 import Random.seed!
 seed!(1234)
@@ -17,6 +16,10 @@ function scale_range( x :: AbstractVector
                     , b :: Real
                     )   :: Vector{Float64}
     return (b-a)*(x .- minimum(x))/(maximum(x) - minimum(x)) .+ a
+end
+
+function mean( x :: AbstractVector )
+    return sum(x)/length(x)
 end
 
 @testset "rejection sample" begin
