@@ -9,7 +9,7 @@ module InterpolatedRejectionSampling
 
 using Interpolations
 
-export rejection_sampling
+export irsample
 
 """
     v = get_variate(support)
@@ -59,6 +59,12 @@ function get_variate( slice   :: NTuple{N,Union{Real,Colon}}
                  )
 end
 
+"""
+Perform a rejection sample
+
+Given a `Interpolations.Extrapolation{T,N,ITPT,IT,ET}` construction, the support of each
+dimension, and pmax
+"""
 function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
                 , support :: NTuple{N,NTuple{2,Real}}
                 , pmax    :: Real
@@ -77,6 +83,12 @@ function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
     return samp
 end
 
+"""
+Perform a rejection sample for a slice
+
+Given a `Interpolations.Extrapolation{T,N,ITPT,IT,ET}` construction, the support of each
+dimension, and pmax
+"""
 function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
                 , slice   :: NTuple{N,Union{Real,Colon}}
                 , support :: NTuple{N,NTuple{2,Real}}
@@ -98,9 +110,10 @@ function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
 end
 
 """
-    samples = rejection_sampling(knots, prob, n)
+    samples = irsample(knots, prob, n)
 
-Draw `n` samples according to `prob` where `knots` where used to construct the approximate `prob`
+Draw `n` samples according to `prob` where `knots` are the dimensions along which `prob`
+is constructed.
 
 # Example
 ```jldoctest
@@ -114,7 +127,7 @@ julia> for (i,p) in enumerate(cos.(x_knots))
 julia> for (i,p) in enumerate(sin.(y_knots))
        prob[:,i] .*= p
        end
-julia> rejection_sampling((x_knots, y_knots), prob, 5)
+julia> irsample((x_knots, y_knots), prob, 5)
 5-element Array{Tuple{Float64,Float64},1}:
  (1.3923419068184772, 1.654197559276566)
  (0.44884616227197993, 2.079250950153405)
@@ -123,10 +136,11 @@ julia> rejection_sampling((x_knots, y_knots), prob, 5)
  (-1.2699084731307861, 0.660071653362384)
 ```
 """
-function rejection_sampling( knots :: NTuple{N,AbstractRange}
-                           , prob  :: AbstractArray{T,N}
-                           , n     :: Integer
-                           ) where {T,N}
+
+function irsample( knots :: NTuple{N,AbstractRange}
+                 , prob  :: AbstractArray{T,N}
+                 , n     :: Integer
+                 ) where {T,N}
     # interpolate the prob with cubic spline with linear edges with knots on cell edges
     cbs_interp = CubicSplineInterpolation(knots, prob)
     support = ntuple( i -> ( knots[i][1]
@@ -142,6 +156,36 @@ function rejection_sampling( knots :: NTuple{N,AbstractRange}
     end
 
     return samp
+end
+
+function irsample( knots :: NTuple{N,AbstractVector}
+                 , prob  :: AbstractArray{T,N}
+                 , n     :: Integer
+                 ) where {T,N}
+    cbs_interp = LinearInterpolation(knots, prob)
+    support = ntuple( i -> ( knots[i][1]
+                           , knots[i][end] - knots[i][1]
+                           )
+                    , Val(N)
+                    )
+
+    samp = Vector{NTuple{N,T}}(undef,n)
+    pmax = 1.05*maximum(prob)
+    for i in eachindex(samp)
+        samp[i] = rsample(cbs_interp,support,pmax)
+    end
+
+    return samp
+end
+
+
+
+function irsample( knots :: AbstractRange
+                 , prob  :: AbstractVector
+                 , n     :: Integer
+                 )
+
+    return getindex.(irsample((knots,), prob, n), 1)
 end
 
 """
@@ -171,7 +215,7 @@ julia> display(samples)
  (-0.36452659968061485, 0.3)
 ```
 """
-function rejection_sampling!( slices :: AbstractVector{NTuple{N,Any}}
+function irsample!( slices :: AbstractVector{NTuple{N,Any}}
                             , knots  :: NTuple{N,AbstractRange}
                             , prob   :: AbstractArray{T,N}
                            ) where {N,T}
