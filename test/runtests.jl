@@ -70,7 +70,7 @@ end
     b = π/2
     c = -1
     d = 0
-    s = [(a,:,:),(b,:,d),(:,c,d),(:,:,:),(a,b,c)]
+    s = [(a,missing,missing),(b,missing,d),(missing,c,d)]
 
     irsample!(s,knots,A)
 
@@ -93,4 +93,7 @@ end
     @test s[5][1] == a
     @test s[5][2] == b
     @test s[5][3] == c
+
+    @show s
+    #s = [(a,:,:),(b,:,d),(:,c,d),(:,:,:),(a,b,c)]
 end
