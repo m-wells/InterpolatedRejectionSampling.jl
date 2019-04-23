@@ -20,18 +20,22 @@ function scale_range( x :: AbstractVector
 end
 
 @testset "rejection sample" begin
+    x1,x2 = 0,π
+    y1,y2 = -π/2,π/2
+
+    X = range(x1,x2,length=20)
+    Y = scale_range(sort(rand(10)),y1,y2)
+    knots = (X,Y)
+
     fx(x) = sin(x)
     fy(y) = cos(y)
 
-    X = range(0,π,length=20)
-    Y = scale_range(sort(rand(10)),-π/2,π/2)
     A = Array{Float64,2}(undef,length(X),length(Y))
     for (i,x) in enumerate(X)
         for (j,y) in enumerate(Y)
             A[i,j] = fx(x)+fy(y)
         end
     end
-    knots = (X,Y)
     s = irsample(knots,A,100000)
     sx = [xy[1] for xy in s]
     sy = [xy[2] for xy in s]
@@ -40,14 +44,20 @@ end
 end
 
 @testset "sliced rejection sample" begin
+    x1,x2 = 0,π
+    y1,y2 = -π/2,π/2
+    z1,z2 = -π/2,π/2
+
+    X = range(x1,x2,length=20)
+    Y = range(y1,y2,length=10)
+    Z = scale_range(sort(rand(10)),z1,z2)
+    knots = (X,Y,Z)
+
     fx(x) = sin(x)
     fy(y) = cos(y)
     fz(z) = tan(z)
 
-    X = range(0,π,length=20)
-    Y = range(-π/2,π/2,length=10)
-    Z = scale_range(sort(rand(10)),-π/2,π/2)
-    A = Array{Float64,2}(undef,length(X),length(Y),length(Z))
+    A = Array{Float64,3}(undef,length(X),length(Y),length(Z))
     for (i,x) in enumerate(X)
         for (j,y) in enumerate(Y)
             for (k,z) in enumerate(Z)
@@ -55,10 +65,32 @@ end
             end
         end
     end
-    knots = (X,Y,Z)
-    s = irsample(knots,A,100000)
-    sx = [xy[1] for xy in s]
-    sy = [xy[2] for xy in s]
-    @test isapprox(mean(sx),π/2,atol=1e-2)
-    @test isapprox(mean(sy),0.0,atol=1e-2)
+
+    a = 0.1
+    b = π/2
+    c = -1
+    d = 0
+    s = [(a,:,:),(b,:,d),(:,c,d),(:,:,:),(a,b,c)]
+
+    irsample!(s,knots,A)
+
+    @test s[1][1] == a
+    @test y1 ≤ s[1][2] ≤ y2
+    @test z1 ≤ s[1][3] ≤ z2
+
+    @test s[2][1] == b
+    @test y1 ≤ s[2][2] ≤ y2
+    @test s[2][3] == d
+
+    @test x1 ≤ s[3][1] ≤ x2
+    @test s[3][2] == c
+    @test s[3][3] == d
+
+    @test x1 ≤ s[4][1] ≤ x2
+    @test y1 ≤ s[4][2] ≤ y2
+    @test z1 ≤ s[4][3] ≤ z2
+
+    @test s[5][1] == a
+    @test s[5][2] == b
+    @test s[5][3] == c
 end

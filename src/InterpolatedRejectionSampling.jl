@@ -9,7 +9,7 @@ module InterpolatedRejectionSampling
 
 using Interpolations
 
-export irsample
+export irsample, irsample!
 
 """
     v = get_variate(support)
@@ -178,8 +178,6 @@ function irsample( knots :: NTuple{N,AbstractVector}
     return samp
 end
 
-
-
 function irsample( knots :: AbstractRange
                  , prob  :: AbstractVector
                  , n     :: Integer
@@ -216,9 +214,9 @@ julia> display(samples)
 ```
 """
 function irsample!( slices :: AbstractVector{NTuple{N,Any}}
-                            , knots  :: NTuple{N,AbstractRange}
-                            , prob   :: AbstractArray{T,N}
-                           ) where {N,T}
+                  , knots  :: NTuple{N,AbstractRange}
+                  , prob   :: AbstractArray{T,N}
+                  ) where {N,T}
     # interpolate the prob with cubic spline with linear edges with knots on cell edges
     cbs_interp = CubicSplineInterpolation(knots, prob)
     support = ntuple( i -> ( knots[i][1]
@@ -234,8 +232,26 @@ function irsample!( slices :: AbstractVector{NTuple{N,Any}}
 
     return nothing
 end
-####################################################################################################
-#
-####################################################################################################
-#---------------------------------------------------------------------------------------------------
+
+function irsample!( slices :: AbstractVector{NTuple{N,Any}}
+                  , knots  :: NTuple{N,AbstractVector}
+                  , prob   :: AbstractArray{T,N}
+                  ) where {N,T}
+    cbs_interp = LinearInterpolation(knots, prob)
+    support = ntuple( i -> ( knots[i][1]
+                           , knots[i][end] - knots[i][1]
+                           )
+                    , Val(N)
+                    )
+
+    pmax = 1.05*maximum(prob)
+    for (i,slice) in enumerate(slices)
+        slices[i] = rsample(cbs_interp,slice,support,pmax)
+    end
+
+    return nothing
+end
+
+
+
 end
