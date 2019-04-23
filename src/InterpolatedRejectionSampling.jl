@@ -11,6 +11,23 @@ using Interpolations
 
 export irsample, irsample!
 
+const PROB_PAD = 3//2
+
+abstract type InterpolationMethod end
+struct Linear <: InterpolationMethod end
+struct CubicSpline <: InterpolationMethod end
+
+"""
+`support` is of the form `((x1,xspan),(y1,yspan),...)` where `xspan` is `x2 - x1`.
+"""
+function get_support(knots :: NTuple{N,AbstractVector}) where N
+    return ntuple( i -> ( knots[i][1]
+                        , knots[i][end] - knots[i][1]
+                        )
+                 , Val(N)
+                 )
+end 
+
 """
     v = get_variate(support)
 
@@ -45,14 +62,14 @@ julia> support = ((1,1),(2,3),(4,19))
 julia> InterpolatedRejectionSampling.get_variate(support)
 (1.2865397858116667, 2.375903248257513, 17.251377235272265)
 
-julia> slice = (1.1,:,:)
-(1.1, Colon(), Colon())
+julia> slice = (1.1,missing,missing)
+(1.1, missing, missing)
 
 julia> InterpolatedRejectionSampling.get_variate(slice,support)
 (1.1, 3.14019677035666, 6.252348183361507)
 ```
 """
-function get_variate( slice   :: NTuple{N,Union{Missing,Float64}}
+function get_variate( slice   :: NTuple{N,Any}
                     , support :: NTuple{N,NTuple{2,Real}}) where N
     return ntuple( i -> ismissing(slice[i]) ? (support[i][1] + rand()*support[i][2]) : slice[i]
                  , Val(N)
@@ -65,7 +82,7 @@ Perform a rejection sample
 Given a `Interpolations.Extrapolation{T,N,ITPT,IT,ET}` construction, the support of each
 dimension, and pmax
 """
-function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
+function rsample( interp  :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
                 , support :: NTuple{N,NTuple{2,Real}}
                 , pmax    :: Real
                 ) where {T,N,ITPT,IT,ET}
@@ -75,7 +92,7 @@ function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
     prob = rand()*pmax
 
     # if rejection value is greater than the interpolated value of the function at sample
-    while prob > sitp(samp...)
+    while prob > interp(samp...)
         # redraw
         samp = get_variate(support)
         prob = rand()*pmax
@@ -89,8 +106,8 @@ Perform a rejection sample for a slice
 Given a `Interpolations.Extrapolation{T,N,ITPT,IT,ET}` construction, the support of each
 dimension, and pmax
 """
-function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
-                , slice   :: NTuple{N,Union{Missing,Float64}}
+function rsample( slice   :: NTuple{N,Any}
+                , interp  :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
                 , support :: NTuple{N,NTuple{2,Real}}
                 , pmax :: Real
                 ) where {T,N,ITPT,IT,ET}
@@ -101,7 +118,7 @@ function rsample( sitp    :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
     prob = rand()*pmax
 
     # if rejection value is greater than the interpolated value of the function at sample
-    while prob > sitp(samp...)
+    while prob > interp(samp...)
         # redraw
         samp = get_variate(slice, support)
         prob = rand()*pmax
@@ -136,54 +153,52 @@ julia> irsample((x_knots, y_knots), prob, 5)
  (-1.2699084731307861, 0.660071653362384)
 ```
 """
+function irsample( support :: NTuple{N,NTuple{2,Real}}
+                 , interp  :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
+                 , n       :: Integer
+                 , pmax    :: Real
+                 ) where {T,N,ITPT,IT,ET}
+    return [rsample(interp,support,pmax) for i in 1:n]
+end
 
 function irsample( knots :: NTuple{N,AbstractRange}
                  , prob  :: AbstractArray{T,N}
                  , n     :: Integer
+                 , ::Linear
+                 ; pmax  :: Real = PROB_PAD*maximum(prob)
                  ) where {T,N}
-    # interpolate the prob with cubic spline with linear edges with knots on cell edges
-    cbs_interp = CubicSplineInterpolation(knots, prob)
-    support = ntuple( i -> ( knots[i][1]
-                           , knots[i][end] - knots[i][1]
-                           )
-                    , Val(N)
-                    )
-
-    samp = Vector{NTuple{N,T}}(undef,n)
-    pmax = 1.05*maximum(prob)
-    for i in eachindex(samp)
-        samp[i] = rsample(cbs_interp,support,pmax)
-    end
-
-    return samp
+    return irsample(get_support(knots), LinearInterpolation(knots,prob),n,pmax)
 end
 
+function irsample( knots :: NTuple{N,AbstractRange}
+                 , prob  :: AbstractArray{T,N}
+                 , n     :: Integer
+                 , ::CubicSpline
+                 ; pmax  :: Real = PROB_PAD*maximum(prob)
+                 ) where {T,N}
+    return irsample(get_support(knots), CubicSplineInterpolation(knots,prob),n,pmax)
+end
+
+"""
+default to CubicSpline when all knots are ranges
+"""
+function irsample( knots :: NTuple{N,AbstractRange}
+                 , prob  :: AbstractArray{T,N}
+                 , n     :: Integer
+                 ; kwargs...
+                 ) where {T,N}
+    return irsample(knots,prob,n,CubicSpline();kwargs...)
+end
+
+"""
+default to LinearInterpolation when knots are vectors
+"""
 function irsample( knots :: NTuple{N,AbstractVector}
                  , prob  :: AbstractArray{T,N}
                  , n     :: Integer
+                 ; pmax  :: Real = PROB_PAD*maximum(prob)
                  ) where {T,N}
-    cbs_interp = LinearInterpolation(knots, prob)
-    support = ntuple( i -> ( knots[i][1]
-                           , knots[i][end] - knots[i][1]
-                           )
-                    , Val(N)
-                    )
-
-    samp = Vector{NTuple{N,T}}(undef,n)
-    pmax = 1.05*maximum(prob)
-    for i in eachindex(samp)
-        samp[i] = rsample(cbs_interp,support,pmax)
-    end
-
-    return samp
-end
-
-function irsample( knots :: AbstractRange
-                 , prob  :: AbstractVector
-                 , n     :: Integer
-                 )
-
-    return getindex.(irsample((knots,), prob, n), 1)
+    return irsample(get_support(knots), LinearInterpolation(knots,prob),n,pmax)
 end
 
 """
@@ -213,45 +228,54 @@ julia> display(samples)
  (-0.36452659968061485, 0.3)
 ```
 """
-#function irsample!( slices :: AbstractVector{NTuple{N,Any}}
-#                  , knots  :: NTuple{N,AbstractRange}
-#                  , prob   :: AbstractArray{T,N}
-#                  ) where {N,T}
-#    # interpolate the prob with cubic spline with linear edges with knots on cell edges
-#    cbs_interp = CubicSplineInterpolation(knots, prob)
-#    support = ntuple( i -> ( knots[i][1]
-#                           , knots[i][end] - knots[i][1]
-#                           )
-#                    , Val(N)
-#                    )
-#
-#    pmax = 1.05*maximum(prob)
-#    for (i,slice) in enumerate(slices)
-#        slices[i] = rsample(cbs_interp,slice,support,pmax)
-#    end
-#
-#    return nothing
-#end
-
-function irsample!( slices :: AbstractVector{NTuple{N,Vector{Union{Missing,T}}}}
-                  , knots  :: NTuple{N,AbstractVector}
-                  , prob   :: AbstractArray{T,N}
-                  ) where {N,T}
-    cbs_interp = LinearInterpolation(knots, prob)
-    support = ntuple( i -> ( knots[i][1]
-                           , knots[i][end] - knots[i][1]
-                           )
-                    , Val(N)
-                    )
-
-    pmax = 1.05*maximum(prob)
+function irsample!( slices  :: Union{Vector,SubArray}
+                  , support :: NTuple{N,NTuple{2,Real}}
+                  , interp  :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
+                  , pmax    :: Real
+                  ) where {T,N,ITPT,IT,ET}
     for (i,slice) in enumerate(slices)
-        slices[i] = rsample(cbs_interp,slice,support,pmax)
+        slices[i] = rsample(slice,interp,support,pmax)
     end
-
-    return nothing
 end
 
+function irsample!( slices :: Union{Vector,SubArray}
+                  , knots  :: NTuple{N,AbstractRange}
+                  , prob   :: AbstractArray{T,N}
+                  , ::Linear
+                  ; pmax   :: Real = PROB_PAD*maximum(prob)
+                  ) where {T,N}
+    irsample!(slices, get_support(knots), LinearInterpolation(knots,prob),pmax)
+end
 
+function irsample!( slices :: Union{Vector,SubArray}
+                  , knots  :: NTuple{N,AbstractRange}
+                  , prob   :: AbstractArray{T,N}
+                  , ::CubicSpline
+                  ; pmax   :: Real = PROB_PAD*maximum(prob)
+                  ) where {T,N}
+    irsample!(slices, get_support(knots), CubicSplineInterpolation(knots,prob),pmax)
+end
+
+"""
+default to CubicSpline when all knots are ranges
+"""
+function irsample!( slices :: Union{Vector,SubArray}
+                  , knots  :: NTuple{N,AbstractRange}
+                  , prob  :: AbstractArray{T,N}
+                  ; kwargs...
+                  ) where {T,N}
+    irsample!(slices,knots,prob,CubicSpline();kwargs...)
+end
+
+"""
+default to LinearInterpolation when knots are not all ranges
+"""
+function irsample!( slices :: Union{Vector,SubArray}
+                  , knots  :: NTuple{N,AbstractVector}
+                  , prob   :: AbstractArray{T,N}
+                  ; pmax  :: Real = PROB_PAD*maximum(prob)
+                  ) where {T,N}
+    irsample!(slices, get_support(knots), LinearInterpolation(knots,prob), pmax)
+end
 
 end

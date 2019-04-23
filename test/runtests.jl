@@ -46,10 +46,10 @@ end
 @testset "sliced rejection sample" begin
     x1,x2 = 0,π
     y1,y2 = -π/2,π/2
-    z1,z2 = -π/2,π/2
+    z1,z2 = -π/4,π/4
 
-    X = range(x1,x2,length=20)
-    Y = range(y1,y2,length=10)
+    X = collect(range(x1,x2,length=20))
+    Y = collect(range(y1,y2,length=10))
     Z = scale_range(sort(rand(10)),z1,z2)
     knots = (X,Y,Z)
 
@@ -70,7 +70,7 @@ end
     b = π/2
     c = -1
     d = 0
-    s = [(a,missing,missing),(b,missing,d),(missing,c,d)]
+    s = [(a,missing,missing),(b,missing,d),(missing,c,d),(missing,missing,missing),(a,b,d)]
 
     irsample!(s,knots,A)
 
@@ -92,8 +92,5 @@ end
 
     @test s[5][1] == a
     @test s[5][2] == b
-    @test s[5][3] == c
-
-    @show s
-    #s = [(a,:,:),(b,:,d),(:,c,d),(:,:,:),(a,b,c)]
+    @test s[5][3] == d
 end
