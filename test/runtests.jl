@@ -97,3 +97,11 @@ end
     @test s[5][2] == b
     @test s[5][3] == d
 end
+
+@testset "univariate sample" begin
+    x1,x2 = 0,π
+    x = range(x1,x2,length=20)
+    y = sin.(x)
+    s = irsample(x,y,100000)
+    @test isapprox(mean(s),π/2,atol=1e-2)
+end

@@ -18,6 +18,7 @@ struct Linear <: InterpolationMethod end
 struct CubicSpline <: InterpolationMethod end
 
 """
+n-dimensional version
 `support` is of the form `((x1,xspan),(y1,yspan),...)` where `xspan` is `x2 - x1`.
 """
 function get_support(knots :: NTuple{N,AbstractVector}) where N
@@ -27,6 +28,15 @@ function get_support(knots :: NTuple{N,AbstractVector}) where N
                  , Val(N)
                  )
 end 
+
+"""
+univariate version
+`support` is of the form `(x1,xspan)` where `xspan` is `x2 - x1`.
+"""
+function get_support(knots :: AbstractVector)
+    return (knots[1],knots[end] - knots[1])
+end 
+
 
 """
     v = get_variate(support)
@@ -43,6 +53,13 @@ julia> InterpolatedRejectionSampling.get_variate(((1,2),(10,1)))
 """
 function get_variate(support :: NTuple{N,NTuple{2,T}}) where {T,N}
     return ntuple( i -> (support[i][1] + rand()*support[i][2]), Val(N))
+end
+
+"""
+univariate form
+"""
+function get_variate(support :: NTuple{2,T}) where {T}
+    return support[1] + rand()*support[2]
 end
 
 """
@@ -93,6 +110,27 @@ function rsample( interp  :: Interpolations.Extrapolation{T,N,ITPT,IT,ET}
 
     # if rejection value is greater than the interpolated value of the function at sample
     while prob > interp(samp...)
+        # redraw
+        samp = get_variate(support)
+        prob = rand()*pmax
+    end
+    return samp
+end
+
+"""
+univariate form
+"""
+function rsample( interp  :: Interpolations.Extrapolation{T,1,ITPT,IT,ET}
+                , support :: NTuple{2,Real}
+                , pmax    :: Real
+                ) where {T,ITPT,IT,ET}
+    # draw a sample
+    samp = get_variate(support)
+    # determine a rejection value
+    prob = rand()*pmax
+
+    # if rejection value is greater than the interpolated value of the function at sample
+    while prob > interp(samp)
         # redraw
         samp = get_variate(support)
         prob = rand()*pmax
@@ -161,6 +199,17 @@ function irsample( support :: NTuple{N,NTuple{2,Real}}
     return [rsample(interp,support,pmax) for i in 1:n]
 end
 
+"""
+univariate form
+"""
+function irsample( support :: NTuple{2,Real}
+                 , interp  :: Interpolations.Extrapolation{T,1,ITPT,IT,ET}
+                 , n       :: Integer
+                 , pmax    :: Real
+                 ) where {T,ITPT,IT,ET}
+    return [rsample(interp,support,pmax) for i in 1:n]
+end
+
 function irsample( knots :: NTuple{N,AbstractRange}
                  , prob  :: AbstractArray{T,N}
                  , n     :: Integer
@@ -176,6 +225,30 @@ function irsample( knots :: NTuple{N,AbstractRange}
                  , ::CubicSpline
                  ; pmax  :: Real = PROB_PAD*maximum(prob)
                  ) where {T,N}
+    return irsample(get_support(knots), CubicSplineInterpolation(knots,prob),n,pmax)
+end
+
+"""
+univariate form
+"""
+function irsample( knots :: AbstractRange
+                 , prob  :: AbstractVector
+                 , n     :: Integer
+                 , ::Linear
+                 ; pmax  :: Real = PROB_PAD*maximum(prob)
+                 )
+    return irsample(get_support(knots), LinearInterpolation(knots,prob),n,pmax)
+end
+
+"""
+univariate form
+"""
+function irsample( knots :: AbstractRange
+                 , prob  :: AbstractVector
+                 , n     :: Integer
+                 , ::CubicSpline
+                 ; pmax  :: Real = PROB_PAD*maximum(prob)
+                 )
     return irsample(get_support(knots), CubicSplineInterpolation(knots,prob),n,pmax)
 end
 
@@ -198,6 +271,30 @@ function irsample( knots :: NTuple{N,AbstractVector}
                  , n     :: Integer
                  ; pmax  :: Real = PROB_PAD*maximum(prob)
                  ) where {T,N}
+    return irsample(get_support(knots), LinearInterpolation(knots,prob),n,pmax)
+end
+
+"""
+default to CubicSpline when all knots are ranges
+univariate form
+"""
+function irsample( knots :: AbstractRange
+                 , prob  :: AbstractVector
+                 , n     :: Integer
+                 ; kwargs...
+                 )
+    return irsample(knots,prob,n,CubicSpline();kwargs...)
+end
+
+"""
+default to LinearInterpolation when knots are vectors
+univariate form
+"""
+function irsample( knots :: AbstractVector
+                 , prob  :: AbstractVector
+                 , n     :: Integer
+                 ; pmax  :: Real = PROB_PAD*maximum(prob)
+                 )
     return irsample(get_support(knots), LinearInterpolation(knots,prob),n,pmax)
 end
 
