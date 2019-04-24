@@ -71,31 +71,38 @@ end
 
     a = 0.1
     b = π/2
-    c = -1
-    d = 0
-    s = [(a,missing,missing),(b,missing,d),(missing,c,d),(missing,missing,missing),(a,b,d)]
+    c = -1.0
+    d = 0.0
 
-    irsample!(s,knots,A)
+    sx = [a,b,missing,missing,a]
+    sy = [missing,missing,c,missing,b]
+    sz = [missing,d,d,missing,d]
+    szip = zip(sx,sy,sz)
 
-    @test s[1][1] == a
-    @test y1 ≤ s[1][2] ≤ y2
-    @test z1 ≤ s[1][3] ≤ z2
+    # Zip, Vector, SubArray
+    for s in [collect(szip),selectdim(collect(szip),1,:)]
+        irsample!(s,knots,A)
 
-    @test s[2][1] == b
-    @test y1 ≤ s[2][2] ≤ y2
-    @test s[2][3] == d
+        @test s[1][1] == a
+        @test y1 ≤ s[1][2] ≤ y2
+        @test z1 ≤ s[1][3] ≤ z2
 
-    @test x1 ≤ s[3][1] ≤ x2
-    @test s[3][2] == c
-    @test s[3][3] == d
+        @test s[2][1] == b
+        @test y1 ≤ s[2][2] ≤ y2
+        @test s[2][3] == d
 
-    @test x1 ≤ s[4][1] ≤ x2
-    @test y1 ≤ s[4][2] ≤ y2
-    @test z1 ≤ s[4][3] ≤ z2
+        @test x1 ≤ s[3][1] ≤ x2
+        @test s[3][2] == c
+        @test s[3][3] == d
 
-    @test s[5][1] == a
-    @test s[5][2] == b
-    @test s[5][3] == d
+        @test x1 ≤ s[4][1] ≤ x2
+        @test y1 ≤ s[4][2] ≤ y2
+        @test z1 ≤ s[4][3] ≤ z2
+
+        @test s[5][1] == a
+        @test s[5][2] == b
+        @test s[5][3] == d
+    end
 end
 
 @testset "univariate sample" begin
