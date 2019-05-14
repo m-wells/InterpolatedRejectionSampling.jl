@@ -26,4 +26,8 @@ seed!(1234)
     irsample!(xy, knots, prob)
     @test isa(xy, Matrix{Union{Missing,Float64}})
     @test size(xy) == (2,n)
+
+    x = irsample(X, sin.(X), n)
+    @test isa(x, Vector{Float64})
+    @test length(x) == n
 end 

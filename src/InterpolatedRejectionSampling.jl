@@ -115,4 +115,19 @@ function irsample(knots ::NTuple{D,AbstractVector{Float64}},
     return convert(Matrix{Float64}, retval)
 end
 
+""" irsample(knots, probs, n)
+inputs:
+    knots ⟶  vector of knots
+    probs ⟶  vector of probs
+    n ⟶  number of samples to draw
+"""
+function irsample(knots ::AbstractVector{Float64},
+                  probs ::AbstractVector{Float64},
+                  n ::Int)
+
+    retval = Matrix{Union{Missing,Float64}}(missing, 1, n)
+    irsample!(retval, (knots,), probs)
+    return convert(Vector{Float64}, vec(retval))
+end
+
 end
