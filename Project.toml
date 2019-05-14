@@ -2,7 +2,7 @@ name = "InterpolatedRejectionSampling"
 uuid = "9608d442-472c-11e9-3e14-5b72dbacd115"
 desc = "Fast (multivariate) rejection sampling of discrete PDFs using Interpolation.jl"
 authors = ["m-wells"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
@@ -14,4 +14,4 @@ julia = "1"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = "Test"
