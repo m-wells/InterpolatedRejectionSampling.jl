@@ -11,6 +11,8 @@ using Interpolations
 
 export irsample!, irsample
 
+const maxruns = 100_000
+
 """
 univariate version
 `support` is of the form `(x1,xspan)` where `xspan` is `x2 - x1`.
@@ -62,7 +64,7 @@ function irsample!(slices ::AbstractMatrix{Union{Missing,Float64}},
 
     _, nc = size(slices)
 
-    for run = 1:100_000
+    for run = 1:maxruns
         mask = BitArray(ismissing.(slices))
         nmissing = count(mask)
 
@@ -110,9 +112,34 @@ function irsample(knots ::NTuple{D,AbstractVector{Float64}},
                   probs ::AbstractArray{Float64,D},
                   n ::Int) where D
 
-    retval = Matrix{Union{Missing,Float64}}(missing, D, n)
-    irsample!(retval, knots, probs)
-    return convert(Matrix{Float64}, retval)
+    retval = Matrix{Float64}(undef, D, n)
+
+    interp = LinearInterpolation(knots, probs, extrapolation_bc=Throw())
+    support = get_support(knots)
+    pmax = maximum(probs)
+    pmax += eps(pmax)
+
+    _i,_j = 1,0
+    for run = 1:maxruns
+        if n == 0
+            break
+        end
+
+        cache = rand((D+1)*n)
+        samples = [support[i][1] + pop!(cache)*support[i][2] for i = 1:D, j = 1:n]
+        variate = cache.*pmax
+
+        inds = findall([variate[i] ≤ interp(samples[:,i]...) for i in eachindex(variate)])
+        _j += length(inds)
+
+        retval[:,_i:_j] = samples[:,inds]
+        _i += length(inds)
+        n -= length(inds)
+    end
+    if n != 0
+        error("failed to draw all samples after maximum number of runs") 
+    end
+    return retval
 end
 
 """ irsample(knots, probs, n)
@@ -124,10 +151,33 @@ inputs:
 function irsample(knots ::AbstractVector{Float64},
                   probs ::AbstractVector{Float64},
                   n ::Int)
+    retval = Vector{Float64}(undef, n)
+    interp = LinearInterpolation(knots, probs, extrapolation_bc=Throw())
+    support = get_support(knots)
+    pmax = maximum(probs)
+    pmax += eps(pmax)
 
-    retval = Matrix{Union{Missing,Float64}}(missing, 1, n)
-    irsample!(retval, (knots,), probs)
-    return convert(Vector{Float64}, vec(retval))
+    _i,_j = 1,0
+    for run = 1:maxruns
+        if n == 0
+            break
+        end
+
+        cache = rand(2n)
+        samples = [support[1] + pop!(cache)*support[2] for j = 1:n]
+        variate = cache.*pmax
+
+        inds = findall([variate[i] ≤ interp(samples[i]) for i in eachindex(variate)])
+        _j += length(inds)
+
+        retval[_i:_j] = samples[inds]
+        _i += length(inds)
+        n -= length(inds)
+    end
+    if n != 0
+        error("failed to draw all samples after maximum number of runs") 
+    end
+    return retval
 end
 
 end
