@@ -64,6 +64,9 @@ function irsample!(slices ::AbstractMatrix{Union{Missing,Float64}},
 
     _, nc = size(slices)
 
+    pmaxes = [get_pmax(ntuple(i->slices[i,j], Val(D)), knots, probs) for j = 1:nc]
+    pmaxes .+= eps.(pmaxes)
+
     for run = 1:maxruns
         mask = BitArray(ismissing.(slices))
         nmissing = count(mask)
@@ -78,17 +81,16 @@ function irsample!(slices ::AbstractMatrix{Union{Missing,Float64}},
         cache = rand(nslices + nmissing)
 
         _slices = selectdim(slices,2,inds)
+        _pmaxes = view(pmaxes,inds)
         samples = collect(_slices)
 
-        pmaxes = [get_pmax(ntuple(i->samples[i,j], Val(D)), knots, probs) for j = 1:nslices]
-        pmaxes .+= eps.(pmaxes)
 
         cinds = findall(ismissing.(samples))
         for cind in cinds
             samples[cind] = support[cind[1]][1] + pop!(cache)*support[cind[1]][2]
         end
 
-        variate = cache.*pmaxes
+        variate = cache.*_pmaxes
 
         inds = findall([variate[i] ≤ interp(samples[:,i]...) for i in eachindex(variate)])
         # update slices
