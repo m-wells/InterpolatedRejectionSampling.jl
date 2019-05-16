@@ -89,15 +89,15 @@ end
 ```
 ```
 BenchmarkTools.Trial: 
-  memory estimate:  29.86 MiB
-  allocs estimate:  600029
+  memory estimate:  12.33 MiB
+  allocs estimate:  200013
   --------------
-  minimum time:     43.686 ms (4.48% GC)
-  median time:      46.023 ms (4.69% GC)
-  mean time:        48.114 ms (7.55% GC)
-  maximum time:     112.981 ms (51.23% GC)
+  minimum time:     5.003 ms (0.00% GC)
+  median time:      8.635 ms (26.59% GC)
+  mean time:        8.392 ms (21.52% GC)
+  maximum time:     78.848 ms (88.96% GC)
   --------------
-  samples:          104
+  samples:          595
   evals/sample:     1
 ```
 ```julia
@@ -106,15 +106,15 @@ using BenchmarkTools
 ```
 ```
 BenchmarkTools.Trial: 
-  memory estimate:  37.66 MiB
-  allocs estimate:  735487
+  memory estimate:  43.60 MiB
+  allocs estimate:  1470663
   --------------
-  minimum time:     27.273 ms (6.16% GC)
-  median time:      29.676 ms (11.63% GC)
-  mean time:        31.125 ms (11.67% GC)
-  maximum time:     100.308 ms (62.43% GC)
+  minimum time:     37.705 ms (13.28% GC)
+  median time:      50.029 ms (13.58% GC)
+  mean time:        51.103 ms (15.15% GC)
+  maximum time:     144.499 ms (57.30% GC)
   --------------
-  samples:          161
+  samples:          98
   evals/sample:     1
 ```
 ```julia
@@ -123,14 +123,14 @@ using BenchmarkTools
 ```
 ```
 BenchmarkTools.Trial: 
-  memory estimate:  7.19 MiB
-  allocs estimate:  143
+  memory estimate:  7.71 MiB
+  allocs estimate:  355344
   --------------
-  minimum time:     6.809 ms (0.00% GC)
-  median time:      7.327 ms (0.00% GC)
-  mean time:        7.811 ms (5.67% GC)
-  maximum time:     76.786 ms (87.52% GC)
+  minimum time:     10.348 ms (0.00% GC)
+  median time:      13.885 ms (0.00% GC)
+  mean time:        14.703 ms (8.48% GC)
+  maximum time:     92.105 ms (83.98% GC)
   --------------
-  samples:          640
+  samples:          340
   evals/sample:     1
 ```
