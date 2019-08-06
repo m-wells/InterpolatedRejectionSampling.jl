@@ -13,8 +13,8 @@ seed!(1234)
 
 @testset "irsample" begin
 
-    X = range(0.0,float(π),length=5)
-    Y = range(0.0,π/4,length=4)
+    X = range(0.0;stop=float(π),length=5)
+    Y = range(0.0;stop=π/4,length=4)
     knots = (X,Y)
     prob = [sin(x)+tan(y) for x in X, y in Y]
     
