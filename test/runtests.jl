@@ -12,7 +12,6 @@ import Random.seed!
 seed!(1234)
 
 @testset "irsample" begin
-
     X = range(0.0;stop=float(π),length=5)
     Y = range(0.0;stop=π/4,length=4)
     knots = (X,Y)
@@ -25,6 +24,7 @@ seed!(1234)
 
     xy = Matrix{Union{Float64,Missing}}(missing,2,n)
     irsample!(xy, knots, prob)
+    @code_warntype irsample!(xy, knots, prob)
     @test isa(xy, Matrix{Union{Missing,Float64}})
     @test size(xy) == (2,n)
     @test iszero(count(ismissing.(xy)))
@@ -33,3 +33,4 @@ seed!(1234)
     @test isa(x, Vector{Float64})
     @test length(x) == n
 end 
+
