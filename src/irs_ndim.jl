@@ -14,8 +14,8 @@ input:
 return:
     retval -> tuple of supports ((xmin,xspan), (ymin,yspan), ...)
 """
-@inline function get_support_and_maxprob(ks::NTuple{D,AbstractVector{T}},
-                                         ci::CartesianIndex{D}) where {D,T<:Real}
+@inline function get_support(ks::NTuple{D,AbstractVector{T}},
+                             ci::CartesianIndex{D}) where {D,T<:Real}
     return ntuple(i -> get_support(ks[i],ci.I[i]), Val(D))
 end 
 
@@ -63,8 +63,8 @@ input:
 function rsample(interp::Extrapolation{T,D,ITPT,IT,ET}, cind::CartesianIndex{D}
                 ) where {T<:Real,D,ITPT,IT,ET}
 
-    support = get_support(knots, cind)
-    maxprob = get_maxprob(probs, cind)
+    support = get_support(get_knots(interp), cind)
+    maxprob = get_maxprob(get_coefs(interp), cind)
     while true
         samp = get_sample(support)
         if rand()*maxprob ≤ interp(samp...)
@@ -84,8 +84,8 @@ input:
 function get_bin_ks_ps(interp::Extrapolation{T,D,ITPT,IT,ET}, ci::CartesianIndex{D}
                       ) where {T<:Real,D,ITPT,IT,ET}
     inds = get_bin_knot_inds(ci)
-    ks = ntuple(i -> interp.itp.knots[i][inds[i]], Val(D))
-    ps = interp.itp.coefs[CartesianIndices(inds)]
+    ks = ntuple(i -> get_knots(interp)[i][inds[i]], Val(D))
+    ps = get_coefs(interp)[CartesianIndices(inds)]
     return ks, ps
 end
 
@@ -96,7 +96,7 @@ input:
     interp
 """
 function compute_pmf(interp::Extrapolation{T,D,ITPT,IT,ET}) where {T<:Real,D,ITPT,IT,ET}
-    pmf = Array{T,D}(undef, size(interp.itp.coefs).-1 ...)
+    pmf = Array{T,D}(undef, size(get_coefs(interp)).-1 ...)
     for ci in CartesianIndices(pmf)
         bin_ks, bin_ps = get_bin_ks_ps(interp, ci)
         pmf[ci] = integrate(bin_ks, bin_ps)
@@ -114,7 +114,28 @@ function choose_bins(interp::Extrapolation{T,D,ITPT,IT,ET}, n::Int
     return sample(CartesianIndices(pmf), Weights(vec(pmf)), n)
 end
 
+""" function choose_bin(interp)
+"""
+function choose_bin(interp::Extrapolation{T,D,ITPT,IT,ET}
+                   ) where {T<:Real,D,ITPT,IT,ET}
+    pmf = compute_pmf(interp)
+    return sample(CartesianIndices(pmf), Weights(vec(pmf)))
+end
 
+
+
+
+
+""" function irsample(interp)
+input:
+    interp --> interpolation object
+"""
+function irsample(interp::Extrapolation{T,D,ITPT,IT,ET}
+                 ) where {T<:Real,D,ITPT,IT,ET}
+
+    bin = choose_bin(interp)
+    return rsample(interp, bin)
+end
 
 """ function irsample(interp, n)
 input:
@@ -130,4 +151,20 @@ function irsample(interp::Extrapolation{T,D,ITPT,IT,ET}, n::Int
     for (i,bin) in enumerate(bins)
         retval[:,i] = rsample(interp, bin)
     end
+    return retval
+end
+
+
+
+""" irsample(knots, probs, n)
+inputs:
+    knots -->  vector of knots
+    probs -->  vector of probs
+    n -->  number of samples to draw
+"""
+function irsample(knots::NTuple{D,AbstractVector{T}},
+                  probs::AbstractArray{T,D},
+                  n::Int) where {T<:Real,D}
+    interp = LinearInterpolation(knots, probs, extrapolation_bc=Throw())
+    return irsample(interp, n)
 end

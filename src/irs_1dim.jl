@@ -16,6 +16,11 @@ input:
     return (x[i], x[i+1] - x[i])
 end 
 
+@inline function get_support(x::AbstractVector{T}, ci::CartesianIndex{1}) where T<:Real
+    i = first(ci.I)
+    return (x[ci], x[i+1] - x[i])
+end 
+
 
 
 """ function get_sample(support)
@@ -46,8 +51,8 @@ input:
 """
 function rsample(interp::Extrapolation{T,1,ITPT,IT,ET}, i::Int
                 ) where {T<:Real,ITPT,IT,ET}
-    support = get_support(interp.itp.knots, i)
-    maxprob = get_maxprob(interp.itp.coefs, i)
+    support = get_support(get_knots(interp), i)
+    maxprob = get_maxprob(get_coefs(interp), i)
     while true
         samp = get_sample(support)
         if rand()*maxprob ≤ interp(samp)
@@ -64,11 +69,21 @@ Computes the probability mass function for each bin
 input:
     interp --> interpolation object
 """
-function compute_pmf(interp::Extrapolation{T,1,ITPT,IT,ET}) where {T<:Real,ITPT,IT,ET}
+function compute_pmf(interp::Extrapolation{T,1,ITPT,IT,ET}
+                    ) where {T<:Real,ITPT<:GriddedInterpolation,IT,ET}
     # trapezoidal rule
-    pmf = diff(interp.itp.knots).*midpoints(interp.itp.probs).*(1//2)
+    pmf = diff(get_knots(interp)).*midpoints(get_coefs(interp)).*(1//2)
     return pmf./sum(pmf)
 end
+
+function compute_pmf(interp::Extrapolation{T,1,ITPT,IT,ET}
+                    ) where {T<:Real,ITPT<:ScaledInterpolation,IT,ET}
+    # trapezoidal rule
+    pmf = step(get_knots(interp)).*midpoints(get_coefs(interp)).*(1//2)
+    return pmf./sum(pmf)
+end
+
+
 
 
 
@@ -98,4 +113,18 @@ function irsample(interp::Extrapolation{T,1,ITPT,IT,ET}, n::Int
     for (i,bin) in enumerate(bins)
         retval[i] = rsample(interp, bin)
     end
+    return retval
+end
+
+""" irsample(knots, probs, n)
+inputs:
+    knots -->  vector of knots
+    probs -->  vector of probs
+    n -->  number of samples to draw
+"""
+function irsample(knots::AbstractVector{T},
+                  probs::AbstractVector{T},
+                  n::Int) where {T<:Real}
+    interp = LinearInterpolation(knots, probs, extrapolation_bc=Throw())
+    return irsample(interp, n)
 end

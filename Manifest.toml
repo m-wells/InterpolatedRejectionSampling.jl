@@ -75,10 +75,12 @@ version = "0.4.1"
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[NumericalIntegration]]
-deps = ["InteractiveUtils", "LinearAlgebra", "Logging", "Test"]
-git-tree-sha1 = "71a5bf35469ec57e1bfdeec7dbb5757e51949bbb"
-uuid = "e7bfaba1-d571-5449-8927-abc22e82249b"
-version = "0.2.0"
+deps = ["LinearAlgebra", "Logging"]
+git-tree-sha1 = "14f27c4f10868d629089f1c21d5889f8d4d0310b"
+repo-rev = "master"
+repo-url = "git@github.com:m-wells/NumericalIntegration.jl.git"
+uuid = "5f557876-c23b-11e9-3c4d-2f49abec428a"
+version = "0.2.1"
 
 [[OffsetArrays]]
 git-tree-sha1 = "1af2f79c7eaac3e019a0de41ef63335ff26a0a57"
