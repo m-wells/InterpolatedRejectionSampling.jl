@@ -1,10 +1,3 @@
-#=
-    run_tests
-    Copyright © 2019 Mark Wells <mwellsa@gmail.com>
-
-    Distributed under terms of the MIT license.
-=#
-
 using InterpolatedRejectionSampling
 using Test
 
