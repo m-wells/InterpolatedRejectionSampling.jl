@@ -5,8 +5,8 @@ import Random.seed!
 seed!(1234)
 
 @testset "irsample" begin
-    X = range(0.0, float(π), length=5)
-    Y = range(0.0, π/4, length=4)
+    X = range(0, stop=π, length=5)
+    Y = range(0, stop=π/4, length=4)
     n = 100
 
     x = irsample(X, sin.(X), n)
