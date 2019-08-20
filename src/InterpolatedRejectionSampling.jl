@@ -9,8 +9,10 @@ module InterpolatedRejectionSampling
 
 using Interpolations
 using Interpolations: Extrapolation, GriddedInterpolation
-using NumericalIntegration
 using StatsBase
+
+include("NumericalIntegration.jl")
+using InterpolatedRejectionSampling.NumericalIntegration
 
 export irsample!, irsample
 
