@@ -14,8 +14,6 @@ using StatsBase: sample, Weights
 
 export irsample, irsample!
 
-@inline midpoints(x::Float64) = x
-
 @inline function midpoints(x::AbstractVector{Float64})
     length(x) == 1 && return x
     retval = Vector{Float64}(undef, length(x)-1)
@@ -34,8 +32,8 @@ end
 
 @inline get_interp(interp::AbstractExtrapolation{Float64,N,ITPT,IT}, val::NTuple{N,Float64}) where {N,ITPT,IT} = interp(val...)
 
-@inline get_knots(interp::Extrapolation{Float64,1,ITPT,BSpline{Linear},ET}) where {ITPT,ET} = first(interp.itp.ranges)
-@inline get_knots(interp::Extrapolation{Float64,1,ITPT,Gridded{Linear},ET}) where {ITPT,ET} = first(interp.itp.knots)
+#@inline get_knots(interp::Extrapolation{Float64,1,ITPT,BSpline{Linear},ET}) where {ITPT,ET} = first(interp.itp.ranges)
+#@inline get_knots(interp::Extrapolation{Float64,1,ITPT,Gridded{Linear},ET}) where {ITPT,ET} = first(interp.itp.knots)
 
 @inline get_knots(interp::Extrapolation{Float64,N,ITPT,BSpline{Linear},ET}) where {N,ITPT,ET} = interp.itp.ranges
 @inline get_knots(interp::Extrapolation{Float64,N,ITPT,Gridded{Linear},ET}) where {N,ITPT,ET} = interp.itp.knots

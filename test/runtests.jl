@@ -36,10 +36,15 @@ interp_ranges = LinearInterpolation(ranges,coefs_ranges)
     @test isapprox(integrate(ninterp), one(Float64))
     @test is_normalized(ninterp)
 
+    ninterp = normalize_interp(interp_ranges)
+    @test isa(ninterp, AbstractExtrapolation)
+    @test isapprox(integrate(ninterp), one(Float64))
+    @test is_normalized(ninterp)
+
     pnt = (0.2,1.0,0.9)
     @test get_interp(interp, pnt) === interp(pnt...)
+    @test get_interp(interp_ranges, pnt) === interp_ranges(pnt...)
     @test maxmapreduce(x -> x^2, [0.0, 0.5, -2.0, 1.5]) == 4.0
-
 end
 
 @testset "Cells" begin
