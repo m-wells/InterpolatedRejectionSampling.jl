@@ -4,11 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/m-wells/InterpolatedRejectionSampling.jl/badge.svg?branch=master)](https://coveralls.io/github/m-wells/InterpolatedRejectionSampling.jl?branch=master)
 
 ## Draw samples from discrete multivariate distributions
-For a given discrete (n-dimensional) grid of values (essentially the weights or probabilities) and the vectors that describe the span of the underlying space we can draw samples.
-```julia
-knots :: NTuple{N,V<:AbstractVector}
-prob  :: AbstractArray{T<:Real,N}
-```
+For a given discrete (n-dimensional) grid of values and the vectors that describe the span of the underlying space we can draw samples.
 The interpolation of the space is handled by  [`Interpolations.jl`](https://github.com/JuliaMath/Interpolations.jl)
 # A simple example
 First we need to setup a discrete distribution
@@ -29,7 +25,6 @@ julia> prob = [sin(x)+tan(y) for x in X, y in Y]
  0.34202      0.440512   0.540933  0.645367     1.0102    1.1627    1.34202
  1.22465e-16  0.0984914  0.198912  0.303347     0.668179  0.820679  1.0    
 ```
-
 We can visualize the probability density matrix like so:
 ```
 julia> using PyPlot
@@ -41,8 +36,6 @@ julia> ax = gca()
 julia> ax.set_xlabel("x-axis [sin(x)]")
 julia> ax.set_ylabel("y-axis [tan(y)]")
 ```
-![png](docs/output_2_0.png)
-
 To perform a sampling
 ```
 julia> using InterpolatedRejectionSampling
@@ -53,4 +46,3 @@ julia> ax = gca()
 julia> ax.set_xlabel("x-axis [sin(x)]")
 julia> ax.set_ylabel("y-axis [tan(y)]")
 ```
-![png](docs/output_3_0.png)

@@ -7,75 +7,223 @@
 
 module InterpolatedRejectionSampling
 
+using Base.Iterators
 using Interpolations
-using Interpolations: Extrapolation, GriddedInterpolation
-using StatsBase
+using Interpolations: Extrapolation
+using StatsBase: sample, Weights
 
-include("NumericalIntegration.jl")
-using InterpolatedRejectionSampling.NumericalIntegration
+export irsample, irsample!
 
-export irsample!, irsample
+@inline midpoints(x::Float64) = x
 
+@inline function midpoints(x::AbstractVector{Float64})
+    length(x) == 1 && return x
+    retval = Vector{Float64}(undef, length(x)-1)
+    @fastmath @inbounds @simd for i in eachindex(retval)
+        retval[i] = (x[i  ] +
+                     x[i+1])/2
+    end
+    return retval
+end
 
+@inline function midpoints(x::AbstractRange{Float64})
+    length(x) == 1 && return x
+    Δx = 0.5*step(x)
+    return range(first(x)+Δx, stop=last(x)-Δx, length=length(x)-1)
+end
 
-struct Slice{T,D}
-    slice::Vector{Union{Missing,T}}
-    knots::NTuple{D,AbstractVector{T}}
-    cinds::CartesianIndices
-    mask::BitVector
+@inline get_interp(interp::AbstractExtrapolation{Float64,N,ITPT,IT}, val::NTuple{N,Float64}) where {N,ITPT,IT} = interp(val...)
 
-    function Slice(slice::AbstractVector{Union{Missing,T}},
-                   knots::NTuple{D,AbstractVector{T}},
-                   mask  = ismissing.(slice)::BitVector,
-                   cinds = CartesianIndices(eachindex.(knots[mask]))
-                  ) where {T<:Real,D}
-        return new{T,D}(slice,knots,cinds,mask)
+@inline get_knots(interp::Extrapolation{Float64,1,ITPT,BSpline{Linear},ET}) where {ITPT,ET} = first(interp.itp.ranges)
+@inline get_knots(interp::Extrapolation{Float64,1,ITPT,Gridded{Linear},ET}) where {ITPT,ET} = first(interp.itp.knots)
+
+@inline get_knots(interp::Extrapolation{Float64,N,ITPT,BSpline{Linear},ET}) where {N,ITPT,ET} = interp.itp.ranges
+@inline get_knots(interp::Extrapolation{Float64,N,ITPT,Gridded{Linear},ET}) where {N,ITPT,ET} = interp.itp.knots
+
+@inline get_coefs(interp::Extrapolation{Float64,N,ITPT,BSpline{Linear},ET}) where {N,ITPT,ET} = interp.itp.itp.coefs
+@inline get_coefs(interp::Extrapolation{Float64,N,ITPT,Gridded{Linear},ET}) where {N,ITPT,ET} = interp.itp.coefs
+
+@inline get_Δ(x::Float64) = 1
+@inline get_Δ(x::AbstractVector) = length(x) > 1 ? diff(x) : 1
+
+@inline integrate(interp::AbstractExtrapolation{Float64,N,ITPT,IT}, (x, Δx)::NTuple{2,NTuple{N,Float64}}
+                  ) where {N,ITPT,IT} = prod(Δx)*get_interp(interp, x)
+
+function integrate(knots::NTuple{N,AbstractVector{Float64}},
+                   interp::AbstractExtrapolation{Float64,N,ITPT,IT}
+                  ) where {N,ITPT,IT}
+    midknots = map(midpoints, knots)
+    Δknots = map(get_Δ, knots)
+    return sum(x -> integrate(interp, x), zip(product(midknots...), product(Δknots...)))
+end
+
+@inline integrate(interp::AbstractExtrapolation{Float64,N,ITPT,IT}
+                 ) where {N,ITPT,IT} = integrate(get_knots(interp), interp)
+
+@inline is_normalized(interp::AbstractExtrapolation{Float64,N,ITPT,IT}
+                     ) where {N,ITPT,IT} = isapprox(integrate(interp), one(Float64))
+
+function normalize_interp(interp::AbstractExtrapolation{Float64,N,ITPT,IT}) where {N,ITPT,IT}
+    knots = get_knots(interp)
+    coefs = get_coefs(interp)
+    A = integrate(interp)
+    coefs ./= A
+    return LinearInterpolation(knots, coefs)
+end
+
+@inline sliced_knots(k::AbstractVector{Float64}, s::T
+                    ) where T<:Union{Missing,Float64} = ismissing(s) ? k : [s]
+
+@inline sliced_knots(knots::NTuple{N,Vector}, slice::AbstractVector{Union{Missing,Float64}}
+                    ) where N = ntuple(i -> sliced_knots(knots[i], slice[i]), Val(N))
+
+struct Cells{Float64,N,ITPT,IT,ET}
+    knots::NTuple{N,Vector}
+    pmass::Array{Float64,N}
+    cinds::CartesianIndices{N,NTuple{N,Base.OneTo{Int}}}
+    interp::Extrapolation{Float64,N,ITPT,IT,ET}
+
+    function Cells(interp::Extrapolation{Float64,N,ITPT,IT,ET},
+                   knots::NTuple{N,Vector} = get_knots(interp)
+                  ) where {T<:Union{Missing,Float64},N,ITPT,IT,ET}
+
+        ksz = map(length, knots)
+        midpnt = map(midpoints, knots)
+        msz = map(length, midpnt)
+
+        pmass = Array{Float64,N}(undef,msz)
+        for (i,k) in enumerate(product(midpnt...))
+            pmass[i] = get_interp(interp, k)
+        end
+        pmass ./= sum(pmass)
+
+        new{Float64,N,ITPT,IT,ET}(knots, pmass, CartesianIndices(msz), interp)
     end
 
-    function Slice(slice::AbstractVector{Union{Missing,T}},
-                   interp::Extrapolation{T,D,ITPT,IT,ET},
-                   mask  = ismissing.(slice)::BitVector,
-                   cinds = CartesianIndices(eachindex.(get_knots(interp)[mask]))
-                  ) where {T<:Real,D,ITPT,IT,ET}
-        return new{T,D}(slice,get_knots(interp),cinds,mask)
+    function Cells(interp::Extrapolation{Float64,N,ITPT,IT,ET},
+                   slice::AbstractVector{Union{Missing,Float64}}
+                  ) where {N,ITPT,IT,ET}
+        knots = get_knots(interp)
+        sknots = sliced_knots(knots, slice)
+        return Cells(interp, sknots)
     end
 end
 
+@inline get_interp(C::Cells{Float64,N,ITPT,IT,ET}, val::NTuple{N,Float64}
+                  ) where {N,ITPT,IT,ET} = get_interp(C.interp, val)
 
+@inline integrate(C::Cells) = integrate(C.knots, C.interp)
 
-function Base.iterate(S::Slice{T,D}, state=1) where {T,D}
-    state > length(S.cinds) && return nothing
+import StatsBase.sample
+@inline sample(C::Cells) = sample(CartesianIndices(C.cinds), Weights(vec(C.pmass)))
+@inline sample(C::Cells, n::Int) = sample(CartesianIndices(C.cinds), Weights(vec(C.pmass)), n)
 
-    cinds = Vector{Int}(undef, D)
-    cinds[S.mask] .= S.cinds[state].I
-    return (ntuple(i -> S.mask[i] ? S.knots[i][cinds[i]] : S.slice[i], Val(D)), state+1)
+@inline _get_xmin(x::AbstractVector{Float64}, i::Int)::Float64 = x[i]
+@inline _get_span(x::AbstractVector{Float64}, i::Int)::Float64 = length(x) == 1 ? zero(Float64) : x[i+1] - x[i]
+
+struct Support{Float64,N}
+    xmin::NTuple{N,Float64}
+    span::NTuple{N,Float64}
+
+    function Support(C::Cells{Float64,N}, cind::CartesianIndex{N}) where {N}
+        xmin = ntuple(i -> _get_xmin(C.knots[i], cind.I[i])::Float64, Val(N))
+        span = ntuple(i -> _get_span(C.knots[i], cind.I[i])::Float64, Val(N))
+        new{Float64,N}(xmin,span)
+    end
 end
 
+@inline Base.getindex(S::Support{Float64,N}, i::Int) where N = (S.xmin[i], S.span[i])
 
+Base.iterate(S::Support{Float64,N}, state::Int=1) where N = state > N ? nothing : (S[state], state+1)
 
-function Base.size(S::Slice{T,D}) where {T,D}
-    return length.(S.knots[S.mask])
+@inline propose_sample(S::Support{Float64,N}
+                      ) where N = ntuple(i -> iszero(last(S[i])) ?
+                                         first(S[i]) :
+                                         first(S[i]) + rand()*last(S[i]),
+                                         Val(N)
+                                        )
+
+@inline get_extrema(S::Support{Float64,N}
+                   ) where N = product(ntuple(i -> (first(S[i]), first(S[i]) + last(S[i])),
+                                              Val(N)
+                                             )...
+                                      )
+
+@inline maxmapreduce(f,a) = mapreduce(f, max, a)
+
+struct Envelope{Float64,N,ITPT,IT,ET}
+    support::Support{Float64,N}
+    maxvalue::Float64
+    interp::Extrapolation{Float64,N,ITPT,IT,ET}
+    function Envelope(C::Cells{Float64,N,ITPT,IT,ET},
+                      cind::CartesianIndex{N}
+                     ) where {N,ITPT,IT,ET}
+        support = Support(C, cind)
+        spnts = get_extrema(support)
+        maxvalue = maxmapreduce(x -> get_interp(C,x), spnts)
+        new{Float64,N,ITPT,IT,ET}(support, maxvalue, C.interp)
+    end
 end
 
+@inline get_interp(E::Envelope{Float64,N,ITPT,IT,ET},
+                   val::NTuple{N,Float64}
+                  ) where {N,ITPT,IT,ET} = get_interp(E.interp, val)
 
+@inline propose_sample(E::Envelope) = propose_sample(E.support)
 
-@inline get_knots(interp::Extrapolation{T,1,ITPT,IT,ET}
-                 ) where {T,D,ITPT<:GriddedInterpolation,IT,ET} = first(interp.itp.knots)
-@inline get_knots(interp::Extrapolation{T,1,ITPT,IT,ET}
-                 ) where {T,D,ITPT<:ScaledInterpolation,IT,ET} = first(interp.itp.ranges)
-@inline get_knots(interp::Extrapolation{T,D,ITPT,IT,ET}
-                 ) where {T,D,ITPT<:GriddedInterpolation,IT,ET} = interp.itp.knots
-@inline get_knots(interp::Extrapolation{T,D,ITPT,IT,ET}
-                 ) where {T,D,ITPT<:ScaledInterpolation,IT,ET} = interp.itp.ranges
+function rsample(E::Envelope{Float64,N,ITPT,IT,ET}) where {N,ITPT,IT,ET}
+    while true
+        samp = propose_sample(E.support)
+        if rand()*E.maxvalue ≤ get_interp(E, samp)
+            return samp
+        end
+    end
+    error("unable to draw a sample after $maxruns runs")
+end
 
-@inline get_coefs(interp::Extrapolation{T,D,ITPT,IT,ET}
-                 ) where {T,D,ITPT<:GriddedInterpolation,IT,ET} = interp.itp.coefs
-@inline get_coefs(interp::Extrapolation{T,D,ITPT,IT,ET}
-                 ) where {T,D,ITPT<:ScaledInterpolation,IT,ET} = interp.itp.itp.coefs
+function rsample(C::Cells)
+    cind = sample(C)
+    E = Envelope(C,cind)
+    return rsample(E)
+end
 
+function rsample(interp::Extrapolation)
+    C = Cells(interp)
+    return rsample(C)
+end
 
-include("irs_1dim.jl")
-include("irs_ndim.jl")
-include("irs_slice.jl")
+function irsample(knots::NTuple{N,AbstractVector{Float64}},
+                  probs::AbstractArray{Float64,N}
+                 ) where N
+    interp = LinearInterpolation(knots, probs)
+    return rsample(interp)
+end
+
+function irsample(knots::NTuple{N,AbstractVector{Float64}},
+                  probs::AbstractArray{Float64,N},
+                  n::Int
+                 ) where N
+    interp = LinearInterpolation(knots, probs)
+    retval = Matrix{Float64}(undef, N, n)
+    for s in eachcol(retval)
+        s .= rsample(interp)
+    end
+    return retval
+end
+
+function rsample(interp::Extrapolation, slice::AbstractVector{Union{Missing,Float64}})
+    C = Cells(interp, slice)
+    return rsample(C)
+end
+
+function irsample!(slices::AbstractMatrix{Union{Missing,Float64}},
+                   knots::NTuple{N,AbstractVector{Float64}},
+                   probs::AbstractArray{Float64,N}
+                  ) where N
+    interp = LinearInterpolation(knots, probs)
+    for s in eachcol(slices)
+        s .= rsample(interp, s)
+    end
+end
 
 end

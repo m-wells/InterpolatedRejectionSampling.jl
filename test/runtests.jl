@@ -1,47 +1,90 @@
 using InterpolatedRejectionSampling
-using Test
+using InterpolatedRejectionSampling: get_knots, integrate, normalize_interp,
+    is_normalized, get_interp, maxmapreduce, Cells, sample, Support, iterate,
+    propose_sample, get_extrema, Envelope, rsample, irsample, irsample!
 
-import Random.seed!
+using Test
+using Interpolations
+
+using Random: seed!
 seed!(1234)
 
-@testset "irsample" begin
-    n = 100
+slice = [missing,missing,0.3]
+knots = (π.*[0.0, sort(rand(20))..., 1.0],
+         π.*[0.0, sort(rand(19))..., 1.0],
+         π.*[0.0, sort(rand(18))..., 1.0])
+coefs = [sin(x)*sin(y)*sin(z) for x=knots[1],y=knots[2],z=knots[3]]
+interp = LinearInterpolation(knots,coefs)
 
-    X = collect(range(0, stop=π, length=5))
-    Y = range(0, stop=π/4, length=4)
-    x = irsample(X, sin.(X), n)
-    @test isa(x, Vector{Float64})
-    @test length(x) == n
+@testset "Utilities" begin
+    @test get_knots(interp) === knots
+    @test isapprox(integrate(interp), 8.0; atol = 0.5)
 
-    X = range(0, stop=π, length=5)
-    Y = range(0, stop=π/4, length=4)
-    x = irsample(X, sin.(X), n)
-    @test isa(x, Vector{Float64})
-    @test length(x) == n
+    ninterp = normalize_interp(interp)
+    @test isa(ninterp, AbstractExtrapolation)
+    @test isapprox(integrate(ninterp), one(Float64))
+    @test is_normalized(ninterp)
 
-    knots = (X,Y)
-    prob = [sin(x)+tan(y) for x in X, y in Y]
-    xy = irsample(knots, prob, n)
-    @test isa(xy, Matrix{Float64})
-    @test size(xy) == (2,n)
+    pnt = (0.2,1.0,0.9)
+    @test get_interp(interp, pnt) === interp(pnt...)
+    @test maxmapreduce(x -> x^2, [0.0, 0.5, -2.0, 1.5]) == 4.0
+end
 
-    xy = Matrix{Union{Float64,Missing}}(missing,2,n)
-    irsample!(xy, knots, prob)
-    @test isa(xy, Matrix{Union{Missing,Float64}})
-    @test size(xy) == (2,n)
-    @test iszero(count(ismissing.(xy)))
+@testset "Cells" begin
+    cells = Cells(interp)
+    @test isa(cells, Cells)
 
-    xy = Matrix{Union{Float64,Missing}}(missing,2,n)
-    xy[1,:] .= π.*rand(n)
-    irsample!(xy, knots, prob)
-    @test isa(xy, Matrix{Union{Missing,Float64}})
-    @test size(xy) == (2,n)
-    @test iszero(count(ismissing.(xy)))
+    s = sample(cells)
+    @test isa(s, CartesianIndex{3})
 
-    xy = Matrix{Union{Float64,Missing}}(missing,2,n)
-    xy[1,1:2:n] .= π.*rand(length(1:2:n))
-    irsample!(xy, knots, prob)
-    @test isa(xy, Matrix{Union{Missing,Float64}})
-    @test size(xy) == (2,n)
-    @test iszero(count(ismissing.(xy)))
-end 
+    cells = Cells(interp,slice)
+    @test isa(cells, Cells)
+
+    s = sample(cells)
+    @test isa(s, CartesianIndex{3})
+end
+
+@testset "Support" begin
+    cells = Cells(interp)
+    s = sample(cells)
+    supp = Support(cells, s)
+    @test isa(supp, Support{Float64,3})
+
+    @test isa(iterate(supp), Tuple{NTuple{2,Float64}, Int})
+    @test isa(iterate(supp,2), Tuple{NTuple{2,Float64}, Int})
+    @test isa(iterate(supp,3), Tuple{NTuple{2,Float64}, Int})
+    @test isa(iterate(supp,4), Nothing)
+
+    samp = propose_sample(supp)
+    @test isa(samp, NTuple{3,Float64})
+
+    spnts = get_extrema(supp)
+    @test length(spnts) == 8
+    @test eltype(spnts) == NTuple{3,Float64}
+end
+
+@testset "Envelope/rsample" begin
+    cells = Cells(interp)
+    s = sample(cells)
+    envelope = Envelope(cells, s)
+    @test isa(envelope, Envelope)
+    @test isa(rsample(envelope), NTuple{3,Float64})
+    @test isa(rsample(interp), NTuple{3,Float64})
+    @test isa(rsample(interp, slice), NTuple{3,Float64})
+end
+
+@testset "irsample/irsample!" begin
+    @test isa(irsample(knots, coefs), NTuple{3,Float64})
+
+    samp = irsample(knots, coefs, 2)
+    @test isa(samp, Matrix{Float64})
+    @test size(samp) == (3,2)
+
+    slices = Matrix{Union{Missing,Float64}}(missing, 3, 3)
+    slices[1,1], slices[1,2], slices[2,2] = 0.2, 0.3, 0.4
+    @test !iszero(count(ismissing, slices))
+
+    irsample!(slices, knots, coefs)
+    @test iszero(count(ismissing, slices))
+    @test isa(convert(Matrix{Float64}, slices), Matrix{Float64})
+end
