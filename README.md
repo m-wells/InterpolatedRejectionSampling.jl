@@ -1,7 +1,7 @@
 # InterpolatedRejectionSampling.jl
 [![Build Status](https://travis-ci.com/m-wells/InterpolatedRejectionSampling.jl.svg?token=qtRCxXQJn8B2HN1f6h3k&branch=master)](https://travis-ci.com/m-wells/InterpolatedRejectionSampling.jl)
 [![codecov](https://codecov.io/gh/m-wells/InterpolatedRejectionSampling.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/m-wells/InterpolatedRejectionSampling.jl)
-![Coveralls github](https://img.shields.io/coveralls/github/m-wells/InterpolatedRejectionSampling.jl)
+[![Coveralls github](https://img.shields.io/coveralls/github/m-wells/InterpolatedRejectionSampling.jl)](https://coveralls.io/github/m-wells/InterpolatedPDFs.jl?branch=master)
 
 ## Draw samples from discrete multivariate distributions
 For a given discrete (n-dimensional) grid of values and the vectors that describe the span of the underlying space we can draw samples.
