@@ -13,12 +13,23 @@ slice = [missing,missing,0.3]
 knots = (π.*[0.0, sort(rand(20))..., 1.0],
          π.*[0.0, sort(rand(19))..., 1.0],
          π.*[0.0, sort(rand(18))..., 1.0])
+
 coefs = [sin(x)*sin(y)*sin(z) for x=knots[1],y=knots[2],z=knots[3]]
 interp = LinearInterpolation(knots,coefs)
+
+
+ranges = (range(0, stop=π, length=20),
+          range(0, stop=π, length=19),
+          range(0, stop=π, length=18))
+coefs_ranges = [sin(x)*sin(y)*sin(z) for x=ranges[1],y=ranges[2],z=ranges[3]]
+interp_ranges = LinearInterpolation(ranges,coefs_ranges)
 
 @testset "Utilities" begin
     @test get_knots(interp) === knots
     @test isapprox(integrate(interp), 8.0; atol = 0.5)
+
+    @test get_knots(interp_ranges) === ranges
+    @test isapprox(integrate(interp_ranges), 8.0; atol = 0.5)
 
     ninterp = normalize_interp(interp)
     @test isa(ninterp, AbstractExtrapolation)
@@ -28,6 +39,7 @@ interp = LinearInterpolation(knots,coefs)
     pnt = (0.2,1.0,0.9)
     @test get_interp(interp, pnt) === interp(pnt...)
     @test maxmapreduce(x -> x^2, [0.0, 0.5, -2.0, 1.5]) == 4.0
+
 end
 
 @testset "Cells" begin
@@ -42,6 +54,9 @@ end
 
     s = sample(cells)
     @test isa(s, CartesianIndex{3})
+
+    cells = Cells(interp_ranges)
+    @test isa(cells, Cells)
 end
 
 @testset "Support" begin
@@ -85,6 +100,21 @@ end
     @test !iszero(count(ismissing, slices))
 
     irsample!(slices, knots, coefs)
+    @test iszero(count(ismissing, slices))
+    @test isa(convert(Matrix{Float64}, slices), Matrix{Float64})
+
+
+    @test isa(irsample(ranges, coefs_ranges), NTuple{3,Float64})
+
+    samp = irsample(ranges, coefs_ranges, 2)
+    @test isa(samp, Matrix{Float64})
+    @test size(samp) == (3,2)
+
+    slices = Matrix{Union{Missing,Float64}}(missing, 3, 3)
+    slices[1,1], slices[1,2], slices[2,2] = 0.2, 0.3, 0.4
+    @test !iszero(count(ismissing, slices))
+
+    irsample!(slices, ranges, coefs_ranges)
     @test iszero(count(ismissing, slices))
     @test isa(convert(Matrix{Float64}, slices), Matrix{Float64})
 end

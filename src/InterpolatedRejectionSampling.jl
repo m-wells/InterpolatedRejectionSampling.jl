@@ -43,7 +43,6 @@ end
 @inline get_coefs(interp::Extrapolation{Float64,N,ITPT,BSpline{Linear},ET}) where {N,ITPT,ET} = interp.itp.itp.coefs
 @inline get_coefs(interp::Extrapolation{Float64,N,ITPT,Gridded{Linear},ET}) where {N,ITPT,ET} = interp.itp.coefs
 
-@inline get_Δ(x::Float64) = 1
 @inline get_Δ(x::AbstractVector) = length(x) > 1 ? diff(x) : 1
 
 @inline integrate(interp::AbstractExtrapolation{Float64,N,ITPT,IT}, (x, Δx)::NTuple{2,NTuple{N,Float64}}
@@ -74,7 +73,7 @@ end
 @inline sliced_knots(k::AbstractVector{Float64}, s::T
                     ) where T<:Union{Missing,Float64} = ismissing(s) ? k : [s]
 
-@inline sliced_knots(knots::NTuple{N,Vector}, slice::AbstractVector{Union{Missing,Float64}}
+@inline sliced_knots(knots::NTuple{N,AbstractVector}, slice::AbstractVector{Union{Missing,Float64}}
                     ) where N = ntuple(i -> sliced_knots(knots[i], slice[i]), Val(N))
 
 struct Cells{Float64,N,ITPT,IT,ET}
@@ -84,7 +83,7 @@ struct Cells{Float64,N,ITPT,IT,ET}
     interp::Extrapolation{Float64,N,ITPT,IT,ET}
 
     function Cells(interp::Extrapolation{Float64,N,ITPT,IT,ET},
-                   knots::NTuple{N,Vector} = get_knots(interp)
+                   knots::NTuple{N,AbstractVector} = get_knots(interp)
                   ) where {T<:Union{Missing,Float64},N,ITPT,IT,ET}
 
         ksz = map(length, knots)
@@ -112,11 +111,8 @@ end
 @inline get_interp(C::Cells{Float64,N,ITPT,IT,ET}, val::NTuple{N,Float64}
                   ) where {N,ITPT,IT,ET} = get_interp(C.interp, val)
 
-@inline integrate(C::Cells) = integrate(C.knots, C.interp)
-
 import StatsBase.sample
 @inline sample(C::Cells) = sample(CartesianIndices(C.cinds), Weights(vec(C.pmass)))
-@inline sample(C::Cells, n::Int) = sample(CartesianIndices(C.cinds), Weights(vec(C.pmass)), n)
 
 @inline _get_xmin(x::AbstractVector{Float64}, i::Int)::Float64 = x[i]
 @inline _get_span(x::AbstractVector{Float64}, i::Int)::Float64 = length(x) == 1 ? zero(Float64) : x[i+1] - x[i]
@@ -173,7 +169,7 @@ end
 
 function rsample(E::Envelope{Float64,N,ITPT,IT,ET}) where {N,ITPT,IT,ET}
     while true
-        samp = propose_sample(E.support)
+        samp = propose_sample(E)
         if rand()*E.maxvalue ≤ get_interp(E, samp)
             return samp
         end
